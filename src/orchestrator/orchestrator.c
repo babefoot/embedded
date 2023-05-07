@@ -1,9 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 
+#include "../../include/orchestrator.h"
+#include "../../include/serverConnection.h"
+#include "../../include/MQ.h"
+
+int idMqHardwareManager = 1;
+int idMqServerConnection = 2;
+int mqHardwareManager;
+int mqServerConnection;
 
 int hardwareManager()
 {
@@ -14,9 +20,9 @@ int hardwareManager()
 int serverConnection()
 {
     printf("ServerConnection started\n");
+    initWs();
     return 0;
 }
-
 
 int createSubprocesses(void (*callback)(void), char* processName){
     printf("Creating process %s\n", processName);
@@ -32,7 +38,6 @@ int createSubprocesses(void (*callback)(void), char* processName){
 
 void initSubProcesses(){
     createSubprocesses(&hardwareManager, "HardwareManager");
-
     createSubprocesses(&serverConnection, "ServerConnection");
 }
 
@@ -40,13 +45,8 @@ int orchestrator()
 {
     printf("Orchestartor starting....\n");
     initSubProcesses();
+    openMQ(idMqHardwareManager);
+    openMQ(idMqServerConnection);
     printf("Orchestartor started\n");
-    return 0;
-}
-
-
-int main(int argc, char const *argv[])
-{
-    orchestrator();
     return 0;
 }
