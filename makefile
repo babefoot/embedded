@@ -13,6 +13,8 @@ SRVCONNECTION_DIR = ./src/serverConnection
 BUILD_DIR = ./build
 OBJR_DIR = objects
 LIB_DIR = ./lib
+
+
 main: $(BUILD_DIR)/$(OBJR_DIR)/orchestrator.o $(BUILD_DIR)/$(OBJR_DIR)/main.o $(BUILD_DIR)/$(OBJR_DIR)/serverConnection.o  $(BUILD_DIR)/$(OBJR_DIR)/hardwareManager.o $(BUILD_DIR)/$(OBJR_DIR)/mq.o
 	$(CC) $(CFLAGS) $(BUILD_DIR)/$(OBJR_DIR)/orchestrator.o $(BUILD_DIR)/$(OBJR_DIR)/serverConnection.o $(BUILD_DIR)/$(OBJR_DIR)/mq.o  $(BUILD_DIR)/$(OBJR_DIR)/main.o -o $(BUILD_DIR)/main -L$(LIB_DIR)/libws $(BUILD_DIR)/$(OBJR_DIR)/hardwareManager.o -lwiringPi -lwsclient
 
