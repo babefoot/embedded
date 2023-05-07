@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include "../../include/hardwareManager.h"
 #include "../../include/orchestrator.h"
 #include "../../include/serverConnection.h"
 #include "../../include/MQ.h"
@@ -11,9 +12,12 @@ int idMqServerConnection = 2;
 int mqHardwareManager;
 int mqServerConnection;
 
-int hardwareManager()
+
+int hardwareManager() 
 {
     printf("HardwareManager started\n");
+    initHardware();
+    sequenceJouerUnPoint(); 
     return 0;
 }
 
