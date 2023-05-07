@@ -4,10 +4,14 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+#include "../../include/hardwareManager.h"
 
-int hardwareManager()
+
+int hardwareManager() 
 {
     printf("HardwareManager started\n");
+    initHardware();
+    sequenceJouerUnPoint(); 
     return 0;
 }
 
