@@ -1,4 +1,82 @@
 #include "../../include/hardwareManager.h"
+#include "../../include/MQ.h"
+#include "../../include/RFID/config.h"
+#include "../../include/RFID/rc522.h"
+#include "../../include/RFID/rfid_sensor.h"
+#include "../../include/RFID/rfid.h"
+#include "../../include/RFID/value.h"
+
+// Seul protitype concernant le RFID
+char * readIdCard();
+
+pid_t pidPere;
+pid_t pidRouge;
+pid_t pidBleu;
+pid_t pidLeds;
+
+extern int idMqHardwareManager;
+//int idMqServerConnection;
+//int mqHardwareManager;
+int mqHardwareManagerRecept;
+message msgFromOrches;
+message finInstruction;
+
+void hardwareManager() 
+{
+    printf("HardwareManager started\n");
+    initHardware();
+    //sleep(5);
+    mqHardwareManagerRecept = openMQ(idMqHardwareManager, 1);
+    
+    for(int i = 0; i<4; i++){
+        receiveFromMQ(mqHardwareManagerRecept, &msgFromOrches, 0);
+        printf("mtype received : <%ld>\n", msgFromOrches.mtype);
+        printf("Payload received : <%s>\n", msgFromOrches.payload);
+        switch(msgFromOrches.mtype){
+            case 1:
+                printf("Debut\n");
+                const char * command = COMMANDE_SON;
+                int cr = system(command);
+                if (cr != 0) {
+                    fprintf(stderr, "Impossible de lancer la commande : %s\n", command);
+                }
+                break;
+            case 2:
+                printf("Joue un point\n");
+                sequenceJouerUnPoint();
+                break;
+            case 3:
+                printf("On demande de scanner une carte\n");
+                readIdCard();
+                break;
+            case 4:
+                printf("On distribue une balle\n");
+                tourner(0, 100);
+                break;
+            case 5:
+                printf("arret de la partie\n");
+                break;
+            default:
+                printf("autre\n");
+                break;
+        }
+
+
+        printf("On previent l'orchestrateur qu on a finit l'instruction \n");
+        message finInstruction;
+        finInstruction.mtype = 30;
+        strcpy(finInstruction.payload, "finInstruction");
+        sendToMQ(mqHardwareManagerRecept, &finInstruction);
+        printf("On a envoyé la bonne fin\n");
+
+    }
+
+    printf("On est sortie du hardwware\n");
+    //return 0;
+}
+
+
+
 
 
 /*
@@ -11,6 +89,7 @@ void initHardware(){
         exit(1);
     }
 }
+
 
 
 
@@ -105,14 +184,16 @@ int sequenceJouerUnPoint(){
 
         // gérer la mort du fils 
         int status;
-        pid_t pidBut;
-        pidBut = wait(&status);
+        //pid_t pidBut;
+        //pidBut = wait(&status);
+        wait(&status);
         
     }
     // gérer la mort du fils 
     int statusTest;
-    pid_t pidButTest;
-    pidButTest = wait(&statusTest);
+    //pid_t pidButTest;
+    //pidButTest = wait(&statusTest);
+    wait(&statusTest);
     //printf("On a attrapé la mort d'un fils <%d>\n", pidButTest);
 
     return buteur;
@@ -191,7 +272,7 @@ int detectionBut(int pinTrig, int pinEcho){
 
         //printf("PIN <%d> vaut %d mm\n", pinEcho, dist);
         //sleep(0.5);
-        usleep(500000); // 0.5s
+        usleep(FREQUENCE); // 0.5s
 
         lastDist = dist;
         pointMesure++;
@@ -260,3 +341,64 @@ void allumerLeds(int equipe){
 */
 
 
+
+/*
+Faire tourner le moteur, 1 tour = 200 pas
+Dans le sens horaire, mettre sens à 1, dans l'autre sens anti-horaire,
+mettre le sens différent de 1
+*/
+void tourner(int sens, int pas){
+
+    pinMode(STEP_PIN, OUTPUT);
+    pinMode(DIR_PIN, OUTPUT);
+
+    printf("On fait tourne le moteur de %d ", pas);
+
+    if(sens == 1){
+        printf("dans le sens horaire\n");
+        digitalWrite(DIR_PIN, HIGH);
+    }
+    else{
+        printf("dans le sens anti-horaire\n");
+        digitalWrite(DIR_PIN, LOW);
+    }
+        
+    for(int i = 0; i<pas ; i++){
+        digitalWrite(STEP_PIN, HIGH);
+        usleep(5000); // == 5ms == 0.005s
+        digitalWrite(STEP_PIN, LOW);
+        usleep(5000); // == 5ms == 0.005s
+    }
+
+    printf("Fin de la rotation du moteur\n");
+
+}
+
+
+
+/*
+Renvoie l'Id de la carte scannée en Hexadecimal
+*/
+char * readIdCard() {
+
+	//double set_val = 0;
+ 
+    if (geteuid() != 0)
+    {
+        p_printf(RED,"Must be run as root.\n");
+        exit(1);
+    }
+
+	set_signals();
+    if (get_config_file()) exit(1);
+    if (HW_init(spi_speed,gpio)) close_out(1);
+    
+	InitRc522();
+
+    printf("Scan de la carte en cours \n");
+    char * retourCard = disp_card_details_idCard(); 
+    printf("ID reçu : <%s>\n", retourCard);
+    close_out2(); 
+
+    return retourCard;
+}
