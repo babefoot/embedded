@@ -21,11 +21,12 @@
 // Capteurs de mouvements
 #define SENSI 100
 #define LANCEMENT 5
+#define FREQUENCE 50000
 // LEDs
-#define COMMANDE_LED_ROUGE "sudo ./data/execLeds -s rouge -g 21"
-#define COMMANDE_LED_ROUGE_ABS "sudo /home/julexis/Documents/objetConnecte/projetEmbarque/embedded/lib/rpi_ws281x/test -s rouge -g 21"
-#define COMMANDE_LED_BLEU "sudo ./data/execLeds -s bleu -g 21"
-#define COMMANDE_LED_BLEU_ABS "sudo /home/julexis/Documents/objetConnecte/projetEmbarque/embedded/lib/rpi_ws281x/test -s bleu -g 21"
+#define COMMANDE_LED_ROUGE "./data/execLeds -s rouge -g 21"
+#define COMMANDE_LED_ROUGE_ABS "/home/julexis/Documents/objetConnecte/projetEmbarque/embedded/lib/rpi_ws281x/test -s rouge -g 21"
+#define COMMANDE_LED_BLEU "./data/execLeds -s bleu -g 21"
+#define COMMANDE_LED_BLEU_ABS "/home/julexis/Documents/objetConnecte/projetEmbarque/embedded/lib/rpi_ws281x/test -s bleu -g 21"
 // Son
 #define COMMANDE_SON_ABS "mpg321 /home/julexis/Documents/objetConnecte/son/Goal.mp3"
 #define COMMANDE_SON "mpg321 ./data/Goal.mp3"
@@ -37,6 +38,9 @@
 // hardwareManager
 #define NB_FORK 2
 #define NB_BUT 3
+// moteur 
+#define STEP_PIN 24  // Winring pi 24 === GPIO 19
+#define DIR_PIN 25   // Winring pi 25 === GPIO 26
 
 
 
@@ -50,9 +54,14 @@ int detectionBut(int pinTrig, int pinEcho);
 int waitButeur(pid_t rouge, pid_t bleu);
 int sequenceJouerUnPoint();
 void initHardware();
+void hardwareManager();
 // MQ
 void initMqRecepteur();
 void initMqEmetteur();
+// moteur
+void tourner(int sens, int pas);
+// RFID
+char * readIdCard();
 
 
 
@@ -60,13 +69,15 @@ void initMqEmetteur();
 /*                          VARIABLES GLOBALES                     */
 /*******************************************************************/
 // hardwareManager
+/*
 #ifndef HARDWARE_H
 #define HARDWARE_H 
-extern pid_t pidPere;
-extern pid_t pidRouge;
-extern pid_t pidBleu;
-extern pid_t pidLeds;
+pid_t pidPere;
+pid_t pidRouge;
+pid_t pidBleu;
+pid_t pidLeds;
 #endif
+*/
 
 // MQ
 /*

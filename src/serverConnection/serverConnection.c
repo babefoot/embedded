@@ -2,7 +2,7 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include "../../include/wsclient.h"
+#include "../../include/wsclientArm.h"
 #include "../../include/serverConnection.h"
 #include "../../include/MQ.h"
 
