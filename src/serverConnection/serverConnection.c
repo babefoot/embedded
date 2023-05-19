@@ -18,6 +18,7 @@ extern int idMqServerConnection;
 
 int shmid;
 
+
 typedef struct {
     long type;
     char payload[256];
@@ -37,6 +38,30 @@ int onerror(wsclient *c, wsclient_error *err) {
 	return 0;
 }
 
+cJSON *parseSharedMemory(){
+	char *sharedMemory = shmat(shmid, NULL, 0);
+	if (sharedMemory == (void*)-1) {
+		perror("shmat");
+		exit(1);
+	}
+
+	cJSON *jsonObj = cJSON_Parse(sharedMemory);
+	if (jsonObj == NULL) {
+		const char *error_ptr = cJSON_GetErrorPtr();
+		if (error_ptr != NULL) {
+			fprintf(stderr, "Error before: %s\n", error_ptr);
+		}
+		exit(1);
+	}
+
+	if (shmdt(sharedMemory) == -1) {
+		perror("shmdt");
+		exit(1);
+	}
+
+	return jsonObj;
+}
+
 int onmessage(wsclient *c, wsclient_message *msg) {
     fprintf(stderr, "onmessage: (%llu): %s\n", msg->payload_len, msg->payload);
 
@@ -45,9 +70,21 @@ int onmessage(wsclient *c, wsclient_message *msg) {
         perror("shmat");
         exit(1);
     }
+	
+	//the msh is a string in json format with a payload object, store it in shared memory
 
-    strncpy(sharedMemory, msg->payload, SHARED_MEMORY_SIZE);
-    sharedMemory[SHARED_MEMORY_SIZE - 1] = '\0';
+	cJSON *jsonObj = cJSON_Parse(msg->payload);
+	if (jsonObj == NULL) {
+		const char *error_ptr = cJSON_GetErrorPtr();
+		if (error_ptr != NULL) {
+			fprintf(stderr, "Error before: %s\n", error_ptr);
+		}
+		exit(1);
+	}
+	cJSON *payload = cJSON_GetObjectItemCaseSensitive(jsonObj, "payload");
+	char *payloadString = cJSON_Print(payload);
+	strcpy(sharedMemory, payloadString);
+
 
     if (shmdt(sharedMemory) == -1) {
         perror("shmdt");
@@ -80,43 +117,52 @@ void cleanupSharedMemory() {
 }
 
 void processMessageFromMQ(wsclient *c) {
-    int mqServerConnection = openMQ(idMqServerConnection, 0);
+    int mqServerConnection = openMQ(idMqServerConnection, 1);
     Message message;
 
     while (1) {
-        if (msgrcv(mqServerConnection, &message, sizeof(message.payload), 0, 0) == -1) {
-            perror("msgrcv");
-            exit(1);
-        }
+		receiveFromMQ(mqServerConnection, &message, 0);
+		fprintf(stderr, "mtype received : <%ld>\n", message.type);
+		fprintf(stderr, "Payload received : <%s>\n", message.payload);
 
-		cJSON *jsonObj = cJSON_CreateObject();
-		cJSON_AddStringToObject(jsonObj, "token", "#^lxn6`S@Z9CGD");
+		cJSON *jsonAction = cJSON_CreateObject();
+		cJSON *jsonPayload = cJSON_CreateObject();
+
 		char *jsonStr;
-
+		cJSON_AddStringToObject(jsonAction, "token", TOKEN);
         switch (message.type) {
-            case 1: // goal_red
-				cJSON_AddStringToObject(jsonObj, "action", "goal_red");
-				cJSON_AddStringToObject(jsonObj, "payload", message.payload);
-				jsonStr = cJSON_PrintUnformatted(jsonObj);
+            case 2: // goal
+				printf("goal case\n");
+				cJSON_AddStringToObject(jsonAction, "action", "goal");
+				cJSON* jsonShared = parseSharedMemory();
+
+				cJSON_AddStringToObject(jsonPayload, "id_game", cJSON_GetObjectItem(jsonShared, "id")->valuestring);
+				cJSON_AddStringToObject(jsonPayload, "team", message.payload);
+				cJSON_AddArrayToObject(jsonPayload, "scorers");
+				cJSON *players = cJSON_GetObjectItem(jsonShared, "players");
+				cJSON *player = NULL;
+				cJSON_ArrayForEach(player, players) {
+					if (strcmp(cJSON_GetObjectItem(player, "team")->valuestring, message.payload) == 0) {
+						printf("player : %s\n", cJSON_GetObjectItem(player, "id")->valuestring);
+						cJSON_AddItemToArray(cJSON_GetObjectItem(jsonPayload, "scorers"), cJSON_CreateString(cJSON_GetObjectItem(player, "id")->valuestring));
+						break;
+					}
+				}
+				cJSON_AddItemToObject(jsonAction, "payload", jsonPayload);
+
+				jsonStr = cJSON_PrintUnformatted(jsonAction);
+				printf("jsonPaylod : %s\n", jsonStr);
 				libwsclient_send(c, jsonStr);
 				cJSON_free(jsonStr);
-				cJSON_Delete(jsonObj);
-                break;
-            case 2: // goal_blue
-				cJSON_AddStringToObject(jsonObj, "action", "goal_blue");
-				cJSON_AddStringToObject(jsonObj, "payload", message.payload);
-				jsonStr = cJSON_PrintUnformatted(jsonObj);
-				libwsclient_send(c, jsonStr);
-				cJSON_free(jsonStr);
-				cJSON_Delete(jsonObj);
+				cJSON_Delete(jsonAction);
                 break;
 			case 3: // scan_card
-				cJSON_AddStringToObject(jsonObj, "action", "scan_card");
-				cJSON_AddStringToObject(jsonObj, "payload", message.payload);
-				jsonStr = cJSON_PrintUnformatted(jsonObj);
+				cJSON_AddStringToObject(jsonAction, "action", "scan_card");
+				cJSON_AddStringToObject(jsonAction, "payload", message.payload);
+				jsonStr = cJSON_PrintUnformatted(jsonAction);
 				libwsclient_send(c, jsonStr);
 				cJSON_free(jsonStr);
-				cJSON_Delete(jsonObj);
+				cJSON_Delete(jsonAction);
                 break;
 
             default:
