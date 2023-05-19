@@ -1,19 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <pthread.h>
 
-#include "../../include/hardwareManager.h"
+// #include "../../include/hardwareManager.h"
 #include "../../include/orchestrator.h"
 #include "../../include/serverConnection.h"
 #include "../../include/MQ.h"
 
-int idMqHardwareManager = 15;
-int idMqServerConnection = 25;
+int idMqHardwareManager = 16;
+int idMqServerConnection = 26;
 int mqHardwareManager;
 //int mqHardwareManagerRecept;
 int mqServerConnection;
 message msgToHardware;
+
 pthread_t threadEcouteServeur;
 
 int serverConnection()
@@ -46,8 +48,8 @@ int createThreadServeur(){
 }
 
 void initSubProcesses(){
-    createSubprocesses(&hardwareManager, "HardwareManager");
-    //createSubprocesses(&serverConnection, "ServerConnection");
+    // createSubprocesses(&hardwareManager, "HardwareManager");
+    createSubprocesses(&serverConnection, "ServerConnection");
 }
 
 int orchestrator()
@@ -58,6 +60,7 @@ int orchestrator()
     createThreadServeur();
     initSubProcesses();
     printf("Orchestartor started\n");
+
 
     // Simulation : on, recupère un message de la MQ serveur
     sleep(5);

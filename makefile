@@ -18,8 +18,15 @@ LIB_DIR = ./lib
 main: $(BUILD_DIR)/$(OBJR_DIR)/orchestrator.o $(BUILD_DIR)/$(OBJR_DIR)/main.o $(BUILD_DIR)/$(OBJR_DIR)/serverConnection.o  $(BUILD_DIR)/$(OBJR_DIR)/hardwareManager.o $(BUILD_DIR)/$(OBJR_DIR)/mq.o
 	$(CC) $(CFLAGS) $(BUILD_DIR)/$(OBJR_DIR)/orchestrator.o $(BUILD_DIR)/$(OBJR_DIR)/serverConnection.o $(BUILD_DIR)/$(OBJR_DIR)/mq.o  $(BUILD_DIR)/$(OBJR_DIR)/main.o -o $(BUILD_DIR)/main -L$(LIB_DIR)/libArmws2 -L$(LIB_DIR)/libRfid $(BUILD_DIR)/$(OBJR_DIR)/hardwareManager.o -lwiringPi -lwsclient -lRfid -lbcm2835 -pthread
 
+main2: $(BUILD_DIR)/$(OBJR_DIR)/orchestrator.o $(BUILD_DIR)/$(OBJR_DIR)/main.o $(BUILD_DIR)/$(OBJR_DIR)/serverConnection.o  $(BUILD_DIR)/$(OBJR_DIR)/mq.o
+	$(CC) $(CFLAGS) $(BUILD_DIR)/$(OBJR_DIR)/orchestrator.o $(BUILD_DIR)/$(OBJR_DIR)/serverConnection.o $(BUILD_DIR)/$(OBJR_DIR)/mq.o  $(BUILD_DIR)/$(OBJR_DIR)/main.o -o $(BUILD_DIR)/main -L$(LIB_DIR)/libws -lwsclient $(SRC)/cJSON.c -lm 
+
+test: $(SRVCONNECTION_DIR)/testServerConnection.c
+	$(CC) $(CFLAGS) -o $@ $^
+
 $(BUILD_DIR)/$(OBJR_DIR)/main.o: $(SRC)/main.c 
 	$(CC) $(CFLAGS) -c $(SRC)/main.c -o $(BUILD_DIR)/$(OBJR_DIR)/main.o
+
 
 $(BUILD_DIR)/$(OBJR_DIR)/serverConnection.o: $(SRVCONNECTION_DIR)/serverConnection.c
 	$(CC) $(CFLAGS) -c $(SRVCONNECTION_DIR)/serverConnection.c -o $(BUILD_DIR)/$(OBJR_DIR)/serverConnection.o
@@ -34,8 +41,9 @@ $(BUILD_DIR)/$(OBJR_DIR)/mq.o: $(LIB_DIR)/libMQ/mq.c
 	$(CC) $(CFLAGS) -c $(LIB_DIR)/libMQ/mq.c -o $(BUILD_DIR)/$(OBJR_DIR)/mq.o
 
 
-	
-# uniquement pour le RFID
+$(BUILD_DIR)/$(OBJR_DIR)/mq.o: $(LIB_DIR)/libMQ/mq.c
+	$(CC) $(CFLAGS) -c $(LIB_DIR)/libMQ/mq.c -o $(BUILD_DIR)/$(OBJR_DIR)/mq.o
+
 #$(BUILD_DIR)/$(OBJR_DIR)/RFID/config.o: $(LIB_DIR)/libRfid/config.c
 #	$(CC) $(CFLAGS) -c $(LIB_DIR)/libRfid/config.c -o $(BUILD_DIR)/$(OBJR_DIR)/RFID/config.o
 #
