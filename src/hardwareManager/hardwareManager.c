@@ -21,20 +21,27 @@ int mqHardwareManagerRecept;
 message msgFromOrches;
 message finInstruction;
 
+pthread_t threadEcouteSon;
+
 void hardwareManager() 
 {
     printf("HardwareManager started\n");
     initHardware();
-    //sleep(5);
     mqHardwareManagerRecept = openMQ(idMqHardwareManager, 1);
     
-    for(int i = 0; i<4; i++){
+    // MQ infinie 
+    for(;;){
+        int equipeBut = 0;
+        char * card; 
+        printf("HM : on attend un message\n");
         receiveFromMQ(mqHardwareManagerRecept, &msgFromOrches, 0);
-        printf("mtype received : <%ld>\n", msgFromOrches.mtype);
-        printf("Payload received : <%s>\n", msgFromOrches.payload);
+        printf("HM : mtype received : <%ld>\n", msgFromOrches.mtype);
+        printf("HM : Payload received : <%s>\n", msgFromOrches.payload);
+
         switch(msgFromOrches.mtype){
             case 1:
-                printf("Debut\n");
+                // Debut de la partie, on jour un son 
+                printf("HM : Debut\n");
                 const char * command = COMMANDE_SON;
                 int cr = system(command);
                 if (cr != 0) {
@@ -42,37 +49,53 @@ void hardwareManager()
                 }
                 break;
             case 2:
-                printf("Joue un point\n");
-                sequenceJouerUnPoint();
+                // useless
+                printf("HM : Joue un point\n");
+                equipeBut = sequenceJouerUnPoint();
+                message finBut;
+                finBut.mtype = 31;
+                if(equipeBut == 1)
+                    strcpy(finBut.payload, "rouge");
+                else
+                    strcpy(finBut.payload, "bleu");
+                sendToMQ(mqHardwareManagerRecept, &finBut);
                 break;
             case 3:
-                printf("On demande de scanner une carte\n");
-                readIdCard();
+                // Scanner une carte puis envoyer dans la MQ vers l orchestrateur
+                printf("HM : On demande de scanner une carte\n");
+                card = readIdCard();
+                message finCard;
+                finCard.mtype = 32;
+                strcpy(finCard.payload, card);
+                sendToMQ(mqHardwareManagerRecept, &finCard);
                 break;
             case 4:
-                printf("On distribue une balle\n");
-                tourner(0, 100);
+                // Distribuer une balle, on n'envoie pas de message 
+                printf("HM : On distribue une balle\n");
+                tourner(1, 100);
                 break;
             case 5:
-                printf("arret de la partie\n");
+                // useless 
+                printf("HM: arret de la partie\n");
+                break;
+            case 10:
+                printf("HM : Animation pour le buteur\n");
+                createThreadSon();
+                if(strcmp(msgFromOrches.payload, "rouge") == 0){
+                    LedRouge();
+                }
+                else{
+                    LedBleu();
+                }
+                closeThreadSon();
                 break;
             default:
                 printf("autre\n");
                 break;
+            
         }
-
-
-        printf("On previent l'orchestrateur qu on a finit l'instruction \n");
-        message finInstruction;
-        finInstruction.mtype = 30;
-        strcpy(finInstruction.payload, "finInstruction");
-        sendToMQ(mqHardwareManagerRecept, &finInstruction);
-        printf("On a envoyé la bonne fin\n");
-
     }
-
     printf("On est sortie du hardwware\n");
-    //return 0;
 }
 
 
@@ -88,6 +111,10 @@ void initHardware(){
         printf("Erreur : librairie wiringPi non initialisée\n"); 
         exit(1);
     }
+
+    // interruptions pour détecter les buts
+    wiringPiISR(LASER_ROUGE, INT_EDGE_RISING, handle_interrupt_rouge);
+    wiringPiISR(LASER_BLEU, INT_EDGE_RISING, handle_interrupt_bleu);
 }
 
 
@@ -257,6 +284,8 @@ int detectionBut(int pinTrig, int pinEcho){
             premierTour = 0;
         }
 
+        printf("Distance : <%d>\n", dist);
+
         if(pointMesure > LANCEMENT){
             if(lastDist - dist > SENSI){
                 printf("BUT du pin : <%d>\n", pinEcho);
@@ -365,9 +394,9 @@ void tourner(int sens, int pas){
         
     for(int i = 0; i<pas ; i++){
         digitalWrite(STEP_PIN, HIGH);
-        usleep(5000); // == 5ms == 0.005s
+        usleep(VITESSE); // == 5ms == 0.005s
         digitalWrite(STEP_PIN, LOW);
-        usleep(5000); // == 5ms == 0.005s
+        usleep(VITESSE); // == 5ms == 0.005s
     }
 
     printf("Fin de la rotation du moteur\n");
@@ -401,4 +430,88 @@ char * readIdCard() {
     close_out2(); 
 
     return retourCard;
+}
+
+/*
+Interruption, l'équipe rouge a marqué, on prévient le serveur et on allume les LED en rouge
+*/
+void handle_interrupt_rouge(){
+    printf("R O U G E\n");
+    message finInstruction;
+    finInstruction.mtype = 30;
+    strcpy(finInstruction.payload, "rouge");
+    sendToMQ(mqHardwareManagerRecept, &finInstruction);
+}
+
+
+/*
+Interruption, l'équipe bleu a marqué, on prévient le serveur et on allume les LED en bleu
+*/
+void handle_interrupt_bleu(){
+    printf("B L E U\n");
+    message finInstruction;
+    finInstruction.mtype = 30;
+    strcpy(finInstruction.payload, "bleu");
+    sendToMQ(mqHardwareManagerRecept, &finInstruction);
+}
+
+
+/*
+Allume les LED en rouge pendant 5 secondes
+*/
+void LedRouge(){
+    const char * commandLedRouge = COMMANDE_LED_ROUGE;
+    int cr = system(commandLedRouge);
+    printf("Code retour de la commande : <%d>\n", cr);
+    if (cr != 0) {
+        fprintf(stderr, "Impossible de lancer la commande : %s\n", commandLedRouge);
+    }
+}
+
+/*
+Allume les LED en bleu pendant 5 secondes
+*/
+void LedBleu(){
+    const char * commandLedBleu = COMMANDE_LED_BLEU;
+    int cr = system(commandLedBleu);
+    printf("Code retour de la commande : <%d>\n", cr);
+    if (cr != 0) {
+        fprintf(stderr, "Impossible de lancer la commande : %s\n", commandLedBleu);
+    }
+}
+
+
+/*
+Joue un son pendant 3 secondes
+*/
+void * jouerSon(){
+    const char * command = COMMANDE_SON;
+    int cr = system(command);
+    if (cr != 0) {
+        fprintf(stderr, "Impossible de lancer la commande : %s\n", command);
+    }
+    pthread_exit(NULL);
+}
+
+
+/*
+Crée un thread pour jouer un son
+*/
+int createThreadSon(){
+    int resultat = pthread_create(&threadEcouteSon, NULL, jouerSon, NULL);
+    if (resultat != 0) {
+        fprintf(stderr, "Erreur lors de la création du thread\n");
+        return 1; 
+    }
+    return 0;
+}
+
+/*
+Fermer le thread d'ecoute pour le Son
+*/
+void closeThreadSon(){
+    int resultat_join = pthread_join(threadEcouteSon, NULL);
+    if (resultat_join != 0) {
+        fprintf(stderr, "Erreur lors de la récupération du thread\n");
+    }
 }
