@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include <pthread.h>
 
 
 
@@ -19,9 +20,9 @@
 /*                          CONSTANTES                             */
 /*******************************************************************/
 // Capteurs de mouvements
-#define SENSI 100
-#define LANCEMENT 5
-#define FREQUENCE 50000
+#define SENSI 40
+#define LANCEMENT 10
+#define FREQUENCE 100000
 // LEDs
 #define COMMANDE_LED_ROUGE "./data/execLeds -s rouge -g 21"
 #define COMMANDE_LED_ROUGE_ABS "/home/julexis/Documents/objetConnecte/projetEmbarque/embedded/lib/rpi_ws281x/test -s rouge -g 21"
@@ -41,7 +42,10 @@
 // moteur 
 #define STEP_PIN 24  // Winring pi 24 === GPIO 19
 #define DIR_PIN 25   // Winring pi 25 === GPIO 26
-
+#define VITESSE 15000
+// capteur LASER 
+#define LASER_ROUGE 9 // pin 5 == GPIO 3 == WiringPi 9
+#define LASER_BLEU 7  // pin 7 == GPIO 4 == WiringPi 7
 
 
 /*******************************************************************/
@@ -62,6 +66,16 @@ void initMqEmetteur();
 void tourner(int sens, int pas);
 // RFID
 char * readIdCard();
+// lasers 
+void handle_interrupt_rouge();
+void handle_interrupt_bleu();
+// LED 
+void LedRouge();
+void LedBleu();
+// thread son 
+void * jouerSon();
+int createThreadSon();
+void closeThreadSon();
 
 
 

@@ -71,4 +71,5 @@ int closeMq(int idMq)
         return 1;
     }
     printf("La Mq <%d> a été fermée avec succès.\n", idMq);
+    return 0;
 }
