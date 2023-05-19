@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "../include/orchestrator.h"
+
 void sigint_handler(int signum);
 
 int main(int argc, char const *argv[])
@@ -21,5 +22,6 @@ void sigint_handler(int signum) {
     printf("Signal SIGINT reçu, on arrete le programme main\n");
     printf("On ferme toutes les MQ\n");
     closeAllMq();
+    closeThread();
     exit(signum);
 }
