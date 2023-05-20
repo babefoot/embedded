@@ -3,26 +3,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
+
 
 #include "../../include/wsclient1.h"
 #include "../../include/wsclientArm.h"
 #include "../../include/serverConnection.h"
 #include "../../include/MQ.h"
-#include "../../include/cJSON.h"
 
-#define SHARED_MEMORY_SIZE 1024
 
 extern int idMqServerConnection;
+int mqServerConnectionRecept;
 
-int shmid;
+int shmidServerConnection;
+char *sharedMemoryServerConnection;
 
-
-typedef struct {
-    long type;
-    char payload[256];
-} Message;
+wsclient *client;
 
 int onclose(wsclient *c) {
 	fprintf(stderr, "onclose called: %d\n", c->sockfd);
@@ -38,12 +33,7 @@ int onerror(wsclient *c, wsclient_error *err) {
 	return 0;
 }
 
-cJSON *parseSharedMemory(){
-	char *sharedMemory = shmat(shmid, NULL, 0);
-	if (sharedMemory == (void*)-1) {
-		perror("shmat");
-		exit(1);
-	}
+cJSON *parseSharedMemory(char *sharedMemory){
 
 	cJSON *jsonObj = cJSON_Parse(sharedMemory);
 	if (jsonObj == NULL) {
@@ -65,11 +55,6 @@ cJSON *parseSharedMemory(){
 int onmessage(wsclient *c, wsclient_message *msg) {
     fprintf(stderr, "onmessage: (%llu): %s\n", msg->payload_len, msg->payload);
 
-    char *sharedMemory = shmat(shmid, NULL, 0);
-    if (sharedMemory == (void*)-1) {
-        perror("shmat");
-        exit(1);
-    }
 	
 	//the msh is a string in json format with a payload object, store it in shared memory
 
@@ -83,14 +68,17 @@ int onmessage(wsclient *c, wsclient_message *msg) {
 	}
 	cJSON *payload = cJSON_GetObjectItemCaseSensitive(jsonObj, "payload");
 	char *payloadString = cJSON_Print(payload);
-	strcpy(sharedMemory, payloadString);
+	strcpy(sharedMemoryServerConnection, payloadString);
 
-
-    if (shmdt(sharedMemory) == -1) {
+    if (shmdt(sharedMemoryServerConnection) == -1) {
         perror("shmdt");
         exit(1);
     }
 
+	message msgInitServ;
+    msgInitServ.mtype = 50;
+    strcpy(msgInitServ.payload, "initState");
+    sendToMQ(mqServerConnectionRecept, &msgInitServ);
     return 0;
 }
 
@@ -101,28 +89,21 @@ int onopen(wsclient *c) {
 	return 0;
 }
 
-void initSharedMemory() {
-    shmid = shmget(IPC_PRIVATE, SHARED_MEMORY_SIZE, IPC_CREAT | 0666);
-    if (shmid == -1) {
-        perror("shmget");
-        exit(1);
-    }
-}
+
 
 void cleanupSharedMemory() {
-    if (shmctl(shmid, IPC_RMID, NULL) == -1) {
+    if (shmctl(shmidServerConnection, IPC_RMID, NULL) == -1) {
         perror("shmctl");
         exit(1);
     }
 }
 
-void processMessageFromMQ(wsclient *c) {
-    int mqServerConnection = openMQ(idMqServerConnection, 1);
-    Message message;
+void processMessageFromMQ() {
+    message message;
 
     while (1) {
-		receiveFromMQ(mqServerConnection, &message, 0);
-		fprintf(stderr, "mtype received : <%ld>\n", message.type);
+		receiveFromMQ(mqServerConnectionRecept, &message, 0);
+		fprintf(stderr, "mtype received : <%ld>\n", message.mtype);
 		fprintf(stderr, "Payload received : <%s>\n", message.payload);
 
 		cJSON *jsonAction = cJSON_CreateObject();
@@ -130,11 +111,11 @@ void processMessageFromMQ(wsclient *c) {
 
 		char *jsonStr;
 		cJSON_AddStringToObject(jsonAction, "token", TOKEN);
-        switch (message.type) {
+        switch (message.mtype) {
             case 2: // goal
 				printf("goal case\n");
 				cJSON_AddStringToObject(jsonAction, "action", "goal");
-				cJSON* jsonShared = parseSharedMemory();
+				cJSON* jsonShared = parseSharedMemory(sharedMemoryServerConnection);
 
 				cJSON_AddStringToObject(jsonPayload, "id_game", cJSON_GetObjectItem(jsonShared, "id")->valuestring);
 				cJSON_AddStringToObject(jsonPayload, "team", message.payload);
@@ -152,21 +133,22 @@ void processMessageFromMQ(wsclient *c) {
 
 				jsonStr = cJSON_PrintUnformatted(jsonAction);
 				printf("jsonPaylod : %s\n", jsonStr);
-				libwsclient_send(c, jsonStr);
+				libwsclient_send(client, jsonStr);
 				cJSON_free(jsonStr);
 				cJSON_Delete(jsonAction);
                 break;
 			case 3: // scan_card
 				cJSON_AddStringToObject(jsonAction, "action", "scan_card");
-				cJSON_AddStringToObject(jsonAction, "payload", message.payload);
+				cJSON_AddStringToObject(jsonPayload, "id_card", message.payload);
+				cJSON_AddItemToObject(jsonAction, "payload", jsonPayload);
 				jsonStr = cJSON_PrintUnformatted(jsonAction);
-				libwsclient_send(c, jsonStr);
+				libwsclient_send(client, jsonStr);
 				cJSON_free(jsonStr);
 				cJSON_Delete(jsonAction);
                 break;
 
             default:
-                fprintf(stderr, "Unknown message type: %ld\n", message.type);
+                fprintf(stderr, "Unknown message type: %ld\n", message.mtype);
                 break;
         }
     }
@@ -174,13 +156,19 @@ void processMessageFromMQ(wsclient *c) {
 
 
 void initWs(){
-	initSharedMemory();
-
-	wsclient *client = libwsclient_new("ws://localhost:8080");
+    mqServerConnectionRecept = openMQ(idMqServerConnection, 1);
+	client = libwsclient_new("ws://localhost:8080");
 	if(!client) {
 		fprintf(stderr, "Unable to initialize new WS client.\n");
 		exit(1);
 	}
+
+	sharedMemoryServerConnection = shmat(shmidServerConnection, NULL, 0);
+    if (sharedMemoryServerConnection == (void*)-1) {
+        perror("shmat");
+        exit(1);
+    }
+
 	//set callback functions for this client
 	libwsclient_onopen(client, &onopen);
 	libwsclient_onmessage(client, &onmessage);
@@ -193,10 +181,15 @@ void initWs(){
 	//starts run thread.
 	libwsclient_run(client);
 
-	processMessageFromMQ(client);
 
 	//blocks until run thread for client is done.
-	libwsclient_finish(client);
 
+}
+
+void serverConnection(int shmid){
+	shmidServerConnection = shmid;
+	initWs();
+	processMessageFromMQ();
 	cleanupSharedMemory();
+	libwsclient_finish(client);
 }

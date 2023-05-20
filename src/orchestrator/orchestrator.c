@@ -3,11 +3,14 @@
 #include <unistd.h>
 #include <string.h>
 #include <pthread.h>
+#include <signal.h>
 
 // #include "../../include/hardwareManager.h"
 #include "../../include/orchestrator.h"
 #include "../../include/serverConnection.h"
 #include "../../include/MQ.h"
+#include "../../include/cJSON.h"
+
 
 int idMqHardwareManager = 16;
 int idMqServerConnection = 26;
@@ -18,12 +21,20 @@ message msgToHardware;
 
 pthread_t threadEcouteServeur;
 
-int serverConnection()
-{
+pid_t pidSubProcesses[2];
+int pidSubProcessesCount = 0;
+
+
+cJSON *json;
+char state[10];
+int shmid;
+char * sharedMemoryOrchestrator;
+
+void callbackServerConnection(){
     printf("ServerConnection started\n");
-    initWs();
-    return 0;
+    serverConnection(shmid);
 }
+
 
 int createSubprocesses(void (*callback)(void), char* processName){
     printf("Creating process %s\n", processName);
@@ -33,6 +44,7 @@ int createSubprocesses(void (*callback)(void), char* processName){
         return 1;
     }else if(pid == 0){
         callback();
+        pidSubProcesses[pidSubProcessesCount++] = pid;
         exit(0);
     }
     return 0;
@@ -49,26 +61,41 @@ int createThreadServeur(){
 
 void initSubProcesses(){
     // createSubprocesses(&hardwareManager, "HardwareManager");
-    createSubprocesses(&serverConnection, "ServerConnection");
+    initSharedMemory();
+    createSubprocesses(&callbackServerConnection, "ServerConnection");
+}
+
+void sigint_handler(int signum) {
+    printf("Signal SIGINT reçu, on arrete le programme main\n");
+    closeAllMq();
+    closeThread();
+    closeSubProcesses();
+    exit(signum);
+}
+
+void initSharedMemory() {
+    shmid = shmget(IPC_PRIVATE, SHARED_MEMORY_SIZE, IPC_CREAT | 0666);
+    if (shmid == -1) {
+        perror("shmget");
+        exit(1);
+    }
 }
 
 int orchestrator()
 {
     printf("Orchestartor starting....\n");
+    initSubProcesses();
     mqHardwareManager = openMQ(idMqHardwareManager, 0);
     mqServerConnection = openMQ(idMqServerConnection, 0);
     createThreadServeur();
-    initSubProcesses();
     printf("Orchestartor started\n");
+    signal(SIGINT, sigint_handler);
 
-
-    // Simulation : on, recupère un message de la MQ serveur
-    sleep(5);
-    printf("OR : On a recu un message du serveur: DEBUT\n");
-    message msgInitServ;
-    msgInitServ.mtype = 3;
-    strcpy(msgInitServ.payload, "simulation debut");
-    sendToMQ(mqHardwareManager, &msgInitServ);
+    sharedMemoryOrchestrator = shmat(shmid, NULL, 0);
+	if (sharedMemoryOrchestrator == (void*)-1) {
+		perror("shmat");
+		exit(1);
+	}
 
     // Mq infinie 
     for(;;){
@@ -125,6 +152,36 @@ void closeAllMq()
 Créer le thread pour écouter les message venant du processus du serveur
 */
 void* threadMqServeur(void* arg) {
+    message msgFromServer;
+    printf("Thread Serveur started\n");
+
+    for (;;)
+    {
+        printf("Thread On attend un message du serveur\n");
+        receiveFromMQ(mqServerConnection, &msgFromServer, 0);
+        printf("thread mtype received : <%ld>\n", msgFromServer.mtype);
+        printf("thread : Payload received : <%s>\n", msgFromServer.payload);
+
+        switch(msgFromServer.mtype){
+            case 50:
+                printf("On a reçu l'information du serveur : <%s>\n", msgFromServer.payload);
+                json = parseSharedMemory(sharedMemoryOrchestrator);
+                strcpy(state, cJSON_GetObjectItem(json, "state")->valuestring);
+                if(strcmp(state, "0") == 0){
+                    printf("On a reçu l'information du serveur : <%s>\n", state);
+                    printf("On envoie l'information à l'HM\n");
+                    message msgInitServ;
+                    msgInitServ.mtype = 3;
+                    strcpy(msgInitServ.payload, "Get Card ID");
+                    sendToMQ(mqHardwareManager, &msgInitServ);
+                }
+
+                break;
+            default:
+                break;
+        }
+    }
+    
 
 
     pthread_exit(NULL);
@@ -138,6 +195,12 @@ void closeThread(){
     int resultat_join = pthread_join(threadEcouteServeur, NULL);
     if (resultat_join != 0) {
         fprintf(stderr, "Erreur lors de la récupération du thread\n");
+    }
+}
+
+void closeSubProcesses(){
+    for(int i = 0; i < pidSubProcessesCount; i++){
+        kill(pidSubProcesses[i], SIGKILL);
     }
 }
 
