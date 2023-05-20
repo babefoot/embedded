@@ -34,7 +34,7 @@ void hardwareManager()
         int equipeBut = 0;
         char * card; 
         printf("HM : on attend un message\n");
-        receiveFromMQ(mqHardwareManagerRecept, &msgFromOrches, 0);
+        receiveFromMQ(mqHardwareManagerRecept, &msgFromOrches, -40);
         printf("HM : mtype received : <%ld>\n", msgFromOrches.mtype);
         printf("HM : Payload received : <%s>\n", msgFromOrches.payload);
 
@@ -72,6 +72,13 @@ void hardwareManager()
                     LedBleu();
                 }
                 closeThreadSon();
+                break;
+            case 14:
+                printf("HM : je suis un relais vers OR\n");
+                message relais;
+                relais.mtype = 14;
+                strcpy(relais.payload, msgFromOrches.payload);
+                sendToMQ(mqHardwareManagerRecept, &relais);
                 break;
             default:
                 printf("autre\n");

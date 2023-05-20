@@ -31,9 +31,9 @@ int openMQ(int id, int isReceveur){
 
 //send a message to a message queue with the type specified
 int sendToMQ(int mqId, message* msg){
-    printf("Sending message to MQ %d\n", mqId);
-    printf("Le type du message : <%ld>\n", msg->mtype);
-    printf("La payload du message : <%s>\n", msg->payload);
+    //printf("Sending message to MQ %d\n", mqId);
+    //printf("Le type du message : <%ld>\n", msg->mtype);
+    //printf("La payload du message : <%s>\n", msg->payload);
    
     int msgFlag = 0;
     int msgReturn = msgsnd(mqId, msg, strlen(msg->payload) + 1, msgFlag);
@@ -52,7 +52,7 @@ int receiveFromMQ(int mqId, message* msg, long type){
         printf("Error while receiving message from MQ %d\n", mqId);
         return 1;
     }
-    printf("Fin reception\n");
+    //printf("Fin reception\n");
     return 0;
 }
 

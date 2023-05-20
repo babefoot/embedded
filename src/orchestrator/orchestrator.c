@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include <signal.h>
 
-// #include "../../include/hardwareManager.h"
+#include "../../include/hardwareManager.h"
 #include "../../include/orchestrator.h"
 #include "../../include/serverConnection.h"
 #include "../../include/MQ.h"
@@ -60,7 +60,7 @@ int createThreadServeur(){
 }
 
 void initSubProcesses(){
-    // createSubprocesses(&hardwareManager, "HardwareManager");
+    createSubprocesses(&hardwareManager, "HardwareManager");
     initSharedMemory();
     createSubprocesses(&callbackServerConnection, "ServerConnection");
 }
@@ -159,7 +159,7 @@ void* threadMqServeur(void* arg) {
     for (;;)
     {
         printf("Thread On attend un message du serveur\n");
-        receiveFromMQ(mqServerConnection, &msgFromServer, 0);
+        receiveFromMQ(mqServerConnection, &msgFromServer, -40);
         printf("thread mtype received : <%ld>\n", msgFromServer.mtype);
         printf("thread : Payload received : <%s>\n", msgFromServer.payload);
 
@@ -171,16 +171,21 @@ void* threadMqServeur(void* arg) {
                 cJSON *json = cJSON_Parse(sharedMemoryOrchestrator);
                 printf("json : %s\n", cJSON_Print(json));
                 strcpy(state, cJSON_GetObjectItem(json, "state")->valuestring);
-                if(strcmp(state, "0") == 0 && strcmp(msgFromServer.payload, "nfull") == 0){
+                //strcmp(state, "0") == 0 && 
+                if(strcmp(msgFromServer.payload, "nfull") == 0){
                     printf("JE demande au HM de scanner une carte\n");
-                    // printf("On a reçu l'information du serveur : <%s>\n", state);
-                    // printf("On envoie l'information à l'HM\n");
-                    // message msgInitServ;
-                    // msgInitServ.mtype = 21;
-                    // strcpy(msgInitServ.payload, "Get Card ID");
-                    // sendToMQ(mqHardwareManager, &msgInitServ);
+                    printf("On a reçu l'information du serveur : <%s>\n", state);
+                    printf("On envoie l'information à l'HM\n");
+                    message msgInitServ;
+                    msgInitServ.mtype = 21;
+                    strcpy(msgInitServ.payload, "Get Card ID");
+                    sendToMQ(mqHardwareManager, &msgInitServ);
                 }
 
+                break;
+            case 0:
+                printf("La MQ du thread est fermé, on tue le thread\n");
+                pthread_exit(NULL);
                 break;
             default:
                 break;

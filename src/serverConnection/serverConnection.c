@@ -103,31 +103,32 @@ void cleanupSharedMemory() {
 }
 
 void processMessageFromMQ() {
-    message message;
+    message messageRcv;
 
     while (1) {
-		receiveFromMQ(mqServerConnectionRecept, &message, -60);
-		fprintf(stderr, "mtype received : <%ld>\n", message.mtype);
-		fprintf(stderr, "Payload received : <%s>\n", message.payload);
+		receiveFromMQ(mqServerConnectionRecept, &messageRcv, -60);
+		fprintf(stderr, "mtype received : <%ld>\n", messageRcv.mtype);
+		fprintf(stderr, "Payload received : <%s>\n", messageRcv.payload);
 
 		cJSON *jsonAction = cJSON_CreateObject();
 		cJSON *jsonPayload = cJSON_CreateObject();
 
 		char *jsonStr;
 		cJSON_AddStringToObject(jsonAction, "token", TOKEN);
-        switch (message.mtype) {
+        switch (messageRcv.mtype) {
             case 51: // goal
 				printf("goal case\n");
 				cJSON_AddStringToObject(jsonAction, "action", "goal");
-				cJSON* jsonShared = parseSharedMemory(sharedMemoryServerConnection);
+                cJSON *jsonShared = cJSON_Parse(sharedMemoryServerConnection);
+
 
 				cJSON_AddStringToObject(jsonPayload, "id_game", cJSON_GetObjectItem(jsonShared, "id")->valuestring);
-				cJSON_AddStringToObject(jsonPayload, "team", message.payload);
+				cJSON_AddStringToObject(jsonPayload, "team", messageRcv.payload);
 				cJSON_AddArrayToObject(jsonPayload, "scorers");
 				cJSON *players = cJSON_GetObjectItem(jsonShared, "players");
 				cJSON *player = NULL;
 				cJSON_ArrayForEach(player, players) {
-					if (strcmp(cJSON_GetObjectItem(player, "team")->valuestring, message.payload) == 0) {
+					if (strcmp(cJSON_GetObjectItem(player, "team")->valuestring, messageRcv.payload) == 0) {
 						printf("player : %s\n", cJSON_GetObjectItem(player, "id")->valuestring);
 						cJSON_AddItemToArray(cJSON_GetObjectItem(jsonPayload, "scorers"), cJSON_CreateString(cJSON_GetObjectItem(player, "id")->valuestring));
 						break;
@@ -140,10 +141,11 @@ void processMessageFromMQ() {
 				libwsclient_send(client, jsonStr);
 				cJSON_free(jsonStr);
 				cJSON_Delete(jsonAction);
+				printf("But envoyé au serveur \n");
                 break;
 			case 52: // scan_card
 				cJSON_AddStringToObject(jsonAction, "action", "scan_card");
-				cJSON_AddStringToObject(jsonPayload, "id_card", message.payload);
+				cJSON_AddStringToObject(jsonPayload, "id_card", messageRcv.payload);
 				cJSON_AddItemToObject(jsonAction, "payload", jsonPayload);
 				jsonStr = cJSON_PrintUnformatted(jsonAction);
 				libwsclient_send(client, jsonStr);
@@ -151,9 +153,16 @@ void processMessageFromMQ() {
 				cJSON_Delete(jsonAction);
 				compteurPlayers++;
                 break;
-
+			case 31:
+				printf("SC : je suis un relais vers OR\n");
+				message relais;
+				relais.mtype = 31;
+				strcpy(relais.payload, compteurPlayers == 4 ? "full" : "nfull");
+				sendToMQ(mqServerConnectionRecept, &relais);
+				return 0;
+                break;
             default:
-                fprintf(stderr, "Unknown message type: %ld\n", message.mtype);
+                fprintf(stderr, "Unknown message type: %ld\n", messageRcv.mtype);
                 break;
         }
     }
@@ -162,7 +171,7 @@ void processMessageFromMQ() {
 
 void initWs(){
     mqServerConnectionRecept = openMQ(idMqServerConnection, 1);
-	client = libwsclient_new("ws://localhost:8080");
+	client = libwsclient_new("ws://192.168.1.80:8080");
 	if(!client) {
 		fprintf(stderr, "Unable to initialize new WS client.\n");
 		exit(1);
@@ -195,6 +204,7 @@ void serverConnection(int shmid){
 	shmidServerConnection = shmid;
 	initWs();
 	processMessageFromMQ();
+	printf("SC : on est sortit du process\n");
 	cleanupSharedMemory();
 	libwsclient_finish(client);
 }
