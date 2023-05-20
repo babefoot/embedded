@@ -10,7 +10,6 @@
 
 
 int openMQ(int id, int isReceveur){
-    printf("Opening MQ %d\n", id);
     key_t key = ftok("makefile", id);
     printf("key: %d\n", key);
 
@@ -35,10 +34,7 @@ int sendToMQ(int mqId, message* msg){
     printf("Sending message to MQ %d\n", mqId);
     printf("Le type du message : <%ld>\n", msg->mtype);
     printf("La payload du message : <%s>\n", msg->payload);
-    //int msgSize = sizeof(msg) + 1;
-    //size_t sizeM = sizeof(message);
-    //size_t test = strlen(msg.payload) + 1;
-    //printf("taille de sizeM : <%d>\n", sizeM);
+   
     int msgFlag = 0;
     int msgReturn = msgsnd(mqId, msg, strlen(msg->payload) + 1, msgFlag);
     if(msgReturn < 0){
@@ -49,7 +45,6 @@ int sendToMQ(int mqId, message* msg){
 }
 
 int receiveFromMQ(int mqId, message* msg, long type){
-    printf("Receiving message from MQ %d\n", mqId);
     //int msgSize = sizeof(msg) + 1;
     int msgFlag = 0;
     int msgReturn = msgrcv(mqId, msg, MAX_PAYLOAD, type, msgFlag);

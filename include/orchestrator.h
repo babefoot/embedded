@@ -6,5 +6,8 @@ void closeAllMq();
 void* threadMqServeur(void* arg);
 int createThreadServeur();
 void closeThread();
+void closeSubProcesses();
+
+void initSharedMemory();
 
 #define TYPE_DEBUT 1

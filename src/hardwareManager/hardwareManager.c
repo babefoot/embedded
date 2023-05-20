@@ -55,9 +55,9 @@ void hardwareManager()
                 message finBut;
                 finBut.mtype = 31;
                 if(equipeBut == 1)
-                    strcpy(finBut.payload, "rouge");
+                    strcpy(finBut.payload, "R");
                 else
-                    strcpy(finBut.payload, "bleu");
+                    strcpy(finBut.payload, "B");
                 sendToMQ(mqHardwareManagerRecept, &finBut);
                 break;
             case 3:
@@ -81,7 +81,7 @@ void hardwareManager()
             case 10:
                 printf("HM : Animation pour le buteur\n");
                 createThreadSon();
-                if(strcmp(msgFromOrches.payload, "rouge") == 0){
+                if(strcmp(msgFromOrches.payload, "R") == 0){
                     LedRouge();
                 }
                 else{
@@ -439,7 +439,7 @@ void handle_interrupt_rouge(){
     printf("R O U G E\n");
     message finInstruction;
     finInstruction.mtype = 30;
-    strcpy(finInstruction.payload, "rouge");
+    strcpy(finInstruction.payload, "R");
     sendToMQ(mqHardwareManagerRecept, &finInstruction);
 }
 
@@ -451,7 +451,7 @@ void handle_interrupt_bleu(){
     printf("B L E U\n");
     message finInstruction;
     finInstruction.mtype = 30;
-    strcpy(finInstruction.payload, "bleu");
+    strcpy(finInstruction.payload, "B");
     sendToMQ(mqHardwareManagerRecept, &finInstruction);
 }
 
