@@ -104,22 +104,28 @@ int orchestrator()
         receiveFromMQ(mqHardwareManager, &msgToHardware, -19);
         printf("OR : mtype received : <%ld>\n", msgToHardware.mtype);
         printf("OR : Payload received : <%s>\n", msgToHardware.payload);
+        cJSON *json;
 
         switch(msgToHardware.mtype){
             case 14:
                 // Une équipe a marqué, on regarde la payload pour savoir si c est rouge ou bleu, puis on envoie dans la MQ de la conenxion serveur
-                printf("L'équipe <%s> a marqué\n", msgToHardware.payload);
-                printf("On envoie l'information au serveur\n");
-                message butEquipeServ;
-                butEquipeServ.mtype = 51;
-                strcpy(butEquipeServ.payload, msgToHardware.payload);
-                sendToMQ(mqServerConnection, &butEquipeServ);
+                json = cJSON_Parse(sharedMemoryOrchestrator);
+                printf("json : %s\n", cJSON_Print(json));
+                strcpy(state, cJSON_GetObjectItem(json, "state")->valuestring);
+                if(strcmp(state, "2") == 0){
+                    printf("L'équipe <%s> a marqué\n", msgToHardware.payload);
+                    printf("On envoie l'information au serveur\n");
+                    message butEquipeServ;
+                    butEquipeServ.mtype = 51;
+                    strcpy(butEquipeServ.payload, msgToHardware.payload);
+                    sendToMQ(mqServerConnection, &butEquipeServ);
 
-                // on renvoie a l HM le fait d allumer les LED et de jouer un son 
-                message animationBut;
-                animationBut.mtype = 13;
-                strcpy(animationBut.payload, msgToHardware.payload);
-                sendToMQ(mqHardwareManager, &animationBut);
+                    // on renvoie a l HM le fait d allumer les LED et de jouer un son 
+                    message animationBut;
+                    animationBut.mtype = 13;
+                    strcpy(animationBut.payload, msgToHardware.payload);
+                    sendToMQ(mqHardwareManager, &animationBut);
+                }
 
                 break;
             case 15:
@@ -171,8 +177,7 @@ void* threadMqServeur(void* arg) {
                 cJSON *json = cJSON_Parse(sharedMemoryOrchestrator);
                 printf("json : %s\n", cJSON_Print(json));
                 strcpy(state, cJSON_GetObjectItem(json, "state")->valuestring);
-                //strcmp(state, "0") == 0 && 
-                if(strcmp(msgFromServer.payload, "nfull") == 0){
+                if(strcmp(state, "0") == 0){
                     printf("JE demande au HM de scanner une carte\n");
                     printf("On a reçu l'information du serveur : <%s>\n", state);
                     printf("On envoie l'information à l'HM\n");

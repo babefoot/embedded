@@ -72,6 +72,8 @@ void hardwareManager()
                     LedBleu();
                 }
                 closeThreadSon();
+                sleep(3);
+                tourner(1, 100);
                 break;
             case 14:
                 printf("HM : je suis un relais vers OR\n");
