@@ -19,6 +19,8 @@ char *sharedMemoryServerConnection;
 
 wsclient *client;
 
+int compteurPlayers = 0;
+
 int onclose(wsclient *c) {
 	fprintf(stderr, "onclose called: %d\n", c->sockfd);
 	return 0;
@@ -67,17 +69,19 @@ int onmessage(wsclient *c, wsclient_message *msg) {
 		exit(1);
 	}
 	cJSON *payload = cJSON_GetObjectItemCaseSensitive(jsonObj, "payload");
+
+	//get the payload object and store it in char *payloadString
 	char *payloadString = cJSON_Print(payload);
+
+	//afficher l'adresse de la shared memory
+	fprintf(stderr, "shared memory address : %p\n", sharedMemoryServerConnection);
 	strcpy(sharedMemoryServerConnection, payloadString);
 
-    if (shmdt(sharedMemoryServerConnection) == -1) {
-        perror("shmdt");
-        exit(1);
-    }
-
 	message msgInitServ;
-    msgInitServ.mtype = 50;
-    strcpy(msgInitServ.payload, "initState");
+    msgInitServ.mtype = 31;
+
+	//make the shared memory empty
+    strcpy(msgInitServ.payload, compteurPlayers == 4 ? "full" : "nfull");
     sendToMQ(mqServerConnectionRecept, &msgInitServ);
     return 0;
 }
@@ -93,16 +97,16 @@ int onopen(wsclient *c) {
 
 void cleanupSharedMemory() {
     if (shmctl(shmidServerConnection, IPC_RMID, NULL) == -1) {
-        perror("shmctl");
-        exit(1);
-    }
+		perror("shmctl");
+		exit(1);
+	}
 }
 
 void processMessageFromMQ() {
     message message;
 
     while (1) {
-		receiveFromMQ(mqServerConnectionRecept, &message, 0);
+		receiveFromMQ(mqServerConnectionRecept, &message, -60);
 		fprintf(stderr, "mtype received : <%ld>\n", message.mtype);
 		fprintf(stderr, "Payload received : <%s>\n", message.payload);
 
@@ -112,7 +116,7 @@ void processMessageFromMQ() {
 		char *jsonStr;
 		cJSON_AddStringToObject(jsonAction, "token", TOKEN);
         switch (message.mtype) {
-            case 2: // goal
+            case 51: // goal
 				printf("goal case\n");
 				cJSON_AddStringToObject(jsonAction, "action", "goal");
 				cJSON* jsonShared = parseSharedMemory(sharedMemoryServerConnection);
@@ -137,7 +141,7 @@ void processMessageFromMQ() {
 				cJSON_free(jsonStr);
 				cJSON_Delete(jsonAction);
                 break;
-			case 3: // scan_card
+			case 52: // scan_card
 				cJSON_AddStringToObject(jsonAction, "action", "scan_card");
 				cJSON_AddStringToObject(jsonPayload, "id_card", message.payload);
 				cJSON_AddItemToObject(jsonAction, "payload", jsonPayload);
@@ -145,6 +149,7 @@ void processMessageFromMQ() {
 				libwsclient_send(client, jsonStr);
 				cJSON_free(jsonStr);
 				cJSON_Delete(jsonAction);
+				compteurPlayers++;
                 break;
 
             default:

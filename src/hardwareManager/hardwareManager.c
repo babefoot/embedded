@@ -39,7 +39,7 @@ void hardwareManager()
         printf("HM : Payload received : <%s>\n", msgFromOrches.payload);
 
         switch(msgFromOrches.mtype){
-            case 1:
+            case 10:
                 // Debut de la partie, on jour un son 
                 printf("HM : Debut\n");
                 const char * command = COMMANDE_SON;
@@ -48,37 +48,21 @@ void hardwareManager()
                     fprintf(stderr, "Impossible de lancer la commande : %s\n", command);
                 }
                 break;
-            case 2:
-                // useless
-                printf("HM : Joue un point\n");
-                equipeBut = sequenceJouerUnPoint();
-                message finBut;
-                finBut.mtype = 31;
-                if(equipeBut == 1)
-                    strcpy(finBut.payload, "R");
-                else
-                    strcpy(finBut.payload, "B");
-                sendToMQ(mqHardwareManagerRecept, &finBut);
-                break;
-            case 3:
+            case 21:
                 // Scanner une carte puis envoyer dans la MQ vers l orchestrateur
                 printf("HM : On demande de scanner une carte\n");
                 card = readIdCard();
                 message finCard;
-                finCard.mtype = 32;
+                finCard.mtype = 15;
                 strcpy(finCard.payload, card);
                 sendToMQ(mqHardwareManagerRecept, &finCard);
                 break;
-            case 4:
+            case 12:
                 // Distribuer une balle, on n'envoie pas de message 
                 printf("HM : On distribue une balle\n");
                 tourner(1, 100);
                 break;
-            case 5:
-                // useless 
-                printf("HM: arret de la partie\n");
-                break;
-            case 10:
+            case 13:
                 printf("HM : Animation pour le buteur\n");
                 createThreadSon();
                 if(strcmp(msgFromOrches.payload, "R") == 0){
@@ -438,7 +422,7 @@ Interruption, l'équipe rouge a marqué, on prévient le serveur et on allume le
 void handle_interrupt_rouge(){
     printf("R O U G E\n");
     message finInstruction;
-    finInstruction.mtype = 30;
+    finInstruction.mtype = 14;
     strcpy(finInstruction.payload, "R");
     sendToMQ(mqHardwareManagerRecept, &finInstruction);
 }
@@ -450,7 +434,7 @@ Interruption, l'équipe bleu a marqué, on prévient le serveur et on allume les
 void handle_interrupt_bleu(){
     printf("B L E U\n");
     message finInstruction;
-    finInstruction.mtype = 30;
+    finInstruction.mtype = 14;
     strcpy(finInstruction.payload, "B");
     sendToMQ(mqHardwareManagerRecept, &finInstruction);
 }
