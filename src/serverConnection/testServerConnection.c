@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
     }
         
     else{
-        message.type = 3;
+        message.type = 52;
         snprintf(message.payload, sizeof(message.payload), "%s", card);
     }
  

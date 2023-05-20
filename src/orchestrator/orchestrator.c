@@ -87,25 +87,26 @@ int orchestrator()
     initSubProcesses();
     mqHardwareManager = openMQ(idMqHardwareManager, 0);
     mqServerConnection = openMQ(idMqServerConnection, 0);
-    createThreadServeur();
-    printf("Orchestartor started\n");
-    signal(SIGINT, sigint_handler);
-
     sharedMemoryOrchestrator = shmat(shmid, NULL, 0);
 	if (sharedMemoryOrchestrator == (void*)-1) {
 		perror("shmat");
 		exit(1);
 	}
+    createThreadServeur();
+    printf("Orchestartor started\n");
+    signal(SIGINT, sigint_handler);
+
+
 
     // Mq infinie 
     for(;;){
         printf("OR : On attend un message \n");
-        receiveFromMQ(mqHardwareManager, &msgToHardware, 0);
+        receiveFromMQ(mqHardwareManager, &msgToHardware, -19);
         printf("OR : mtype received : <%ld>\n", msgToHardware.mtype);
         printf("OR : Payload received : <%s>\n", msgToHardware.payload);
 
         switch(msgToHardware.mtype){
-            case 30:
+            case 14:
                 // Une équipe a marqué, on regarde la payload pour savoir si c est rouge ou bleu, puis on envoie dans la MQ de la conenxion serveur
                 printf("L'équipe <%s> a marqué\n", msgToHardware.payload);
                 printf("On envoie l'information au serveur\n");
@@ -116,12 +117,12 @@ int orchestrator()
 
                 // on renvoie a l HM le fait d allumer les LED et de jouer un son 
                 message animationBut;
-                animationBut.mtype = 10;
+                animationBut.mtype = 13;
                 strcpy(animationBut.payload, msgToHardware.payload);
                 sendToMQ(mqHardwareManager, &animationBut);
 
                 break;
-            case 32:
+            case 15:
                 // On a recu l id de la carte depuis l HM
                 printf("On a reçu l'ID de la carte <%s>\n", msgToHardware.payload);
                 printf("On envoie l'information au serveur\n");
@@ -163,17 +164,21 @@ void* threadMqServeur(void* arg) {
         printf("thread : Payload received : <%s>\n", msgFromServer.payload);
 
         switch(msgFromServer.mtype){
-            case 50:
+            case 31:
                 printf("On a reçu l'information du serveur : <%s>\n", msgFromServer.payload);
-                json = parseSharedMemory(sharedMemoryOrchestrator);
+                fprintf(stderr, "shared memory address : %p\n", sharedMemoryOrchestrator);
+                //print the shared memory content
+                cJSON *json = cJSON_Parse(sharedMemoryOrchestrator);
+                printf("json : %s\n", cJSON_Print(json));
                 strcpy(state, cJSON_GetObjectItem(json, "state")->valuestring);
-                if(strcmp(state, "0") == 0){
-                    printf("On a reçu l'information du serveur : <%s>\n", state);
-                    printf("On envoie l'information à l'HM\n");
-                    message msgInitServ;
-                    msgInitServ.mtype = 3;
-                    strcpy(msgInitServ.payload, "Get Card ID");
-                    sendToMQ(mqHardwareManager, &msgInitServ);
+                if(strcmp(state, "0") == 0 && strcmp(msgFromServer.payload, "nfull") == 0){
+                    printf("JE demande au HM de scanner une carte\n");
+                    // printf("On a reçu l'information du serveur : <%s>\n", state);
+                    // printf("On envoie l'information à l'HM\n");
+                    // message msgInitServ;
+                    // msgInitServ.mtype = 21;
+                    // strcpy(msgInitServ.payload, "Get Card ID");
+                    // sendToMQ(mqHardwareManager, &msgInitServ);
                 }
 
                 break;
